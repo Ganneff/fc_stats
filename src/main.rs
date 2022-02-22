@@ -14,7 +14,7 @@ use std::{
     env,
     error::Error,
     fs::{read_dir, rename, File, OpenOptions},
-    io::{self, Write},
+    io::{self, BufWriter, Write},
     path::Path,
     process::{Command, Stdio},
     thread,
@@ -35,185 +35,231 @@ fn get_hosts() -> Result<Vec<String>, Box<dyn Error>> {
 
 /// Print out munin config data
 fn config() -> Result<(), Box<dyn Error>> {
+    // We want to write a large amount to stdout, take and lock it
+    let stdout = io::stdout();
+    let mut handle = BufWriter::with_capacity(16384, stdout.lock());
+
     for hname in get_hosts()? {
-        println!("multigraph san_{0}", hname);
-        println!("graph_title SAN port status {0}", hname);
-        println!("graph_category disk");
-        println!("graph_vlabel SAN port status {0}", hname);
-        println!("graph_scale no",);
-        println!("update_rate 1",);
-        println!(
+        writeln!(handle, "multigraph san_{0}", hname)?;
+        writeln!(handle, "graph_title SAN port status {0}", hname)?;
+        writeln!(handle, "graph_category disk")?;
+        writeln!(handle, "graph_vlabel SAN port status {0}", hname)?;
+        writeln!(handle, "graph_scale no",)?;
+        writeln!(handle, "update_rate 1",)?;
+        writeln!(
+            handle,
             "graph_data_size custom 1d, 1s for 1d, 5s for 2d, 10s for 7d, 1m for 1t, 5m for 1y",
-        );
-        println!("{0}_fcp_input_megabytes.label {0} Mb/s", hname);
-        println!("{0}_fcp_input_megabytes.draw LINE", hname);
-        println!("{0}_fcp_input_megabytes.type COUNTER", hname);
-        println!("{0}_fcp_input_megabytes.min 0", hname);
-        println!("{0}_fcp_input_megabytes.graph no", hname);
-        println!(
+        )?;
+        writeln!(handle, "{0}_fcp_input_megabytes.label {0} Mb/s", hname)?;
+        writeln!(handle, "{0}_fcp_input_megabytes.draw LINE", hname)?;
+        writeln!(handle, "{0}_fcp_input_megabytes.type COUNTER", hname)?;
+        writeln!(handle, "{0}_fcp_input_megabytes.min 0", hname)?;
+        writeln!(handle, "{0}_fcp_input_megabytes.graph no", hname)?;
+        writeln!(
+            handle,
             "{0}_fcp_input_megabytes.cdef {0}_fcp_input_megabytes,1,*",
             hname
-        );
-        println!("{0}_fcp_output_megabytes.label {0} Mb/s", hname);
-        println!("{0}_fcp_output_megabytes.draw LINE", hname);
-        println!("{0}_fcp_output_megabytes.type COUNTER", hname);
-        println!("{0}_fcp_output_megabytes.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "{0}_fcp_output_megabytes.label {0} Mb/s", hname)?;
+        writeln!(handle, "{0}_fcp_output_megabytes.draw LINE", hname)?;
+        writeln!(handle, "{0}_fcp_output_megabytes.type COUNTER", hname)?;
+        writeln!(handle, "{0}_fcp_output_megabytes.min 0", hname)?;
+        writeln!(
+            handle,
             "{0}_fcp_output_megabytes.negative {0}_fcp_input_megabytes",
             hname
-        );
-        println!(
+        )?;
+        writeln!(
+            handle,
             "{0}_fcp_output_megabytes.cdef {0}_fcp_output_megabytes,1,*",
             hname
-        );
-        println!("{0}_fcp_input_requests.label {0} requests", hname);
-        println!("{0}_fcp_input_requests.draw LINE", hname);
-        println!("{0}_fcp_input_requests.type COUNTER", hname);
-        println!("{0}_fcp_input_requests.min 0", hname);
-        println!("{0}_fcp_input_requests.graph no", hname);
-        println!(
+        )?;
+        writeln!(handle, "{0}_fcp_input_requests.label {0} requests", hname)?;
+        writeln!(handle, "{0}_fcp_input_requests.draw LINE", hname)?;
+        writeln!(handle, "{0}_fcp_input_requests.type COUNTER", hname)?;
+        writeln!(handle, "{0}_fcp_input_requests.min 0", hname)?;
+        writeln!(handle, "{0}_fcp_input_requests.graph no", hname)?;
+        writeln!(
+            handle,
             "{0}_fcp_input_requests.cdef {0}_fcp_input_requests,1,*",
             hname
-        );
-        println!("{0}_fcp_output_requests.label {0} requests", hname);
-        println!("{0}_fcp_output_requests.draw LINE", hname);
-        println!("{0}_fcp_output_requests.type COUNTER", hname);
-        println!("{0}_fcp_output_requests.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "{0}_fcp_output_requests.label {0} requests", hname)?;
+        writeln!(handle, "{0}_fcp_output_requests.draw LINE", hname)?;
+        writeln!(handle, "{0}_fcp_output_requests.type COUNTER", hname)?;
+        writeln!(handle, "{0}_fcp_output_requests.min 0", hname)?;
+        writeln!(
+            handle,
             "{0}_fcp_output_requests.negative {0}_fcp_input_requests",
             hname
-        );
-        println!(
+        )?;
+        writeln!(
+            handle,
             "{0}_fcp_output_requests.cdef {0}_fcp_output_requests,1,*",
             hname
-        );
-        println!("{0}_fcp_packet_aborts.label {0} FCP Packet Aborts", hname);
-        println!("{0}_fcp_packet_aborts.draw LINE", hname);
-        println!("{0}_fcp_packet_aborts.type COUNTER", hname);
-        println!("{0}_fcp_packet_aborts.min 0", hname);
-        println!("{0}_invalid_crc_count.label {0} Invalid CRC Count", hname);
-        println!("{0}_invalid_crc_count.draw LINE", hname);
-        println!("{0}_invalid_crc_count.type COUNTER", hname);
-        println!("{0}_invalid_crc_count.min 0", hname);
-        println!(
+        )?;
+        writeln!(
+            handle,
+            "{0}_fcp_packet_aborts.label {0} FCP Packet Aborts",
+            hname
+        )?;
+        writeln!(handle, "{0}_fcp_packet_aborts.draw LINE", hname)?;
+        writeln!(handle, "{0}_fcp_packet_aborts.type COUNTER", hname)?;
+        writeln!(handle, "{0}_fcp_packet_aborts.min 0", hname)?;
+        writeln!(
+            handle,
+            "{0}_invalid_crc_count.label {0} Invalid CRC Count",
+            hname
+        )?;
+        writeln!(handle, "{0}_invalid_crc_count.draw LINE", hname)?;
+        writeln!(handle, "{0}_invalid_crc_count.type COUNTER", hname)?;
+        writeln!(handle, "{0}_invalid_crc_count.min 0", hname)?;
+        writeln!(
+            handle,
             "{0}_invalid_tx_word_count.label {0} Invalid TX Word Count",
             hname
-        );
-        println!("{0}_invalid_tx_word_count.draw LINE", hname);
-        println!("{0}_invalid_tx_word_count.type COUNTER", hname);
-        println!("{0}_invalid_tx_word_count.min 0", hname);
-        println!("{0}_link_failure_count.label {0} Link Failure Count", hname);
-        println!("{0}_link_failure_count.draw LINE", hname);
-        println!("{0}_link_failure_count.type COUNTER", hname);
-        println!("{0}_link_failure_count.min 0", hname);
+        )?;
+        writeln!(handle, "{0}_invalid_tx_word_count.draw LINE", hname)?;
+        writeln!(handle, "{0}_invalid_tx_word_count.type COUNTER", hname)?;
+        writeln!(handle, "{0}_invalid_tx_word_count.min 0", hname)?;
+        writeln!(
+            handle,
+            "{0}_link_failure_count.label {0} Link Failure Count",
+            hname
+        )?;
+        writeln!(handle, "{0}_link_failure_count.draw LINE", hname)?;
+        writeln!(handle, "{0}_link_failure_count.type COUNTER", hname)?;
+        writeln!(handle, "{0}_link_failure_count.min 0", hname)?;
 
-        println!("multigraph san_{0}.san_{0}_mega", hname);
-        println!("graph_title SAN port transfer {0}", hname);
-        println!("graph_category disk",);
-        println!("graph_vlabel SAN port status {0}", hname);
-        println!("graph_scale no",);
-        println!("update_rate 1",);
-        println!(
+        writeln!(handle, "multigraph san_{0}.san_{0}_mega", hname)?;
+        writeln!(handle, "graph_title SAN port transfer {0}", hname)?;
+        writeln!(handle, "graph_category disk",)?;
+        writeln!(handle, "graph_vlabel SAN port status {0}", hname)?;
+        writeln!(handle, "graph_scale no",)?;
+        writeln!(handle, "update_rate 1",)?;
+        writeln!(
+            handle,
             "graph_data_size custom 1d, 1s for 1d, 5s for 2d, 10s for 7d, 1m for 1t, 5m for 1y",
-        );
-        println!("san_{0}_fcp_input_megabytes.label {0} Mb/s", hname);
-        println!("san_{0}_fcp_input_megabytes.draw LINE", hname);
-        println!("san_{0}_fcp_input_megabytes.type COUNTER", hname);
-        println!("san_{0}_fcp_input_megabytes.min 0", hname);
-        println!("san_{0}_fcp_input_megabytes.graph no", hname);
-        println!(
+        )?;
+        writeln!(handle, "san_{0}_fcp_input_megabytes.label {0} Mb/s", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_megabytes.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_megabytes.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_megabytes.min 0", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_megabytes.graph no", hname)?;
+        writeln!(
+            handle,
             "san_{0}_fcp_input_megabytes.cdef san_{0}_fcp_input_megabytes,1,*",
             hname
-        );
-        println!("san_{0}_fcp_output_megabytes.label {0} Mb/s", hname);
-        println!("san_{0}_fcp_output_megabytes.draw LINE", hname);
-        println!("san_{0}_fcp_output_megabytes.type COUNTER", hname);
-        println!("san_{0}_fcp_output_megabytes.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "san_{0}_fcp_output_megabytes.label {0} Mb/s", hname)?;
+        writeln!(handle, "san_{0}_fcp_output_megabytes.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_fcp_output_megabytes.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_fcp_output_megabytes.min 0", hname)?;
+        writeln!(
+            handle,
             "san_{0}_fcp_output_megabytes.negative san_{0}_fcp_input_megabytes",
             hname
-        );
-        println!(
+        )?;
+        writeln!(
+            handle,
             "san_{0}_fcp_output_megabytes.cdef san_{0}_fcp_output_megabytes,1,*",
             hname
-        );
+        )?;
 
-        println!("multigraph san_{0}.san_{0}_requests", hname);
-        println!("graph_title SAN port requests {0}", hname);
-        println!("graph_category disk",);
-        println!("graph_vlabel SAN port requests {0}", hname);
-        println!("graph_scale no",);
-        println!("update_rate 1",);
-        println!(
+        writeln!(handle, "multigraph san_{0}.san_{0}_requests", hname)?;
+        writeln!(handle, "graph_title SAN port requests {0}", hname)?;
+        writeln!(handle, "graph_category disk",)?;
+        writeln!(handle, "graph_vlabel SAN port requests {0}", hname)?;
+        writeln!(handle, "graph_scale no",)?;
+        writeln!(handle, "update_rate 1",)?;
+        writeln!(
+            handle,
             "graph_data_size custom 1d, 1s for 1d, 5s for 2d, 10s for 7d, 1m for 1t, 5m for 1y",
-        );
-        println!("san_{0}_fcp_input_requests.label {0} requests", hname);
-        println!("san_{0}_fcp_input_requests.draw LINE", hname);
-        println!("san_{0}_fcp_input_requests.type COUNTER", hname);
-        println!("san_{0}_fcp_input_requests.min 0", hname);
-        println!("san_{0}_fcp_input_requests.graph no", hname);
-        println!(
+        )?;
+        writeln!(
+            handle,
+            "san_{0}_fcp_input_requests.label {0} requests",
+            hname
+        )?;
+        writeln!(handle, "san_{0}_fcp_input_requests.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_requests.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_requests.min 0", hname)?;
+        writeln!(handle, "san_{0}_fcp_input_requests.graph no", hname)?;
+        writeln!(
+            handle,
             "san_{0}_fcp_input_requests.cdef san_{0}_fcp_input_requests,1,*",
             hname
-        );
-        println!("san_{0}_fcp_output_requests.label {0} requests", hname);
-        println!("san_{0}_fcp_output_requests.draw LINE", hname);
-        println!("san_{0}_fcp_output_requests.type COUNTER", hname);
-        println!("san_{0}_fcp_output_requests.min 0", hname);
-        println!(
+        )?;
+        writeln!(
+            handle,
+            "san_{0}_fcp_output_requests.label {0} requests",
+            hname
+        )?;
+        writeln!(handle, "san_{0}_fcp_output_requests.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_fcp_output_requests.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_fcp_output_requests.min 0", hname)?;
+        writeln!(
+            handle,
             "san_{0}_fcp_output_requests.negative san_{0}_fcp_input_requests",
             hname
-        );
-        println!(
+        )?;
+        writeln!(
+            handle,
             "san_{0}_fcp_output_requests.cdef san_{0}_fcp_output_requests,1,*",
             hname
-        );
+        )?;
 
-        println!("multigraph san_{0}.san_{0}_other", hname);
-        println!("graph_title SAN port stats {0}", hname);
-        println!("graph_category disk",);
-        println!("graph_vlabel SAN port stats {0}", hname);
-        println!("graph_scale no",);
-        println!("update_rate 1",);
-        println!(
+        writeln!(handle, "multigraph san_{0}.san_{0}_other", hname)?;
+        writeln!(handle, "graph_title SAN port stats {0}", hname)?;
+        writeln!(handle, "graph_category disk",)?;
+        writeln!(handle, "graph_vlabel SAN port stats {0}", hname)?;
+        writeln!(handle, "graph_scale no",)?;
+        writeln!(handle, "update_rate 1",)?;
+        writeln!(
+            handle,
             "graph_data_size custom 1d, 1s for 1d, 5s for 2d, 10s for 7d, 1m for 1t, 5m for 1y",
-        );
-        println!(
+        )?;
+        writeln!(
+            handle,
             "san_{0}_fcp_packet_aborts.label {0} FCP Packet Aborts",
             hname
-        );
-        println!("san_{0}_fcp_packet_aborts.draw LINE", hname);
-        println!("san_{0}_fcp_packet_aborts.type COUNTER", hname);
-        println!("san_{0}_fcp_packet_aborts.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "san_{0}_fcp_packet_aborts.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_fcp_packet_aborts.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_fcp_packet_aborts.min 0", hname)?;
+        writeln!(
+            handle,
             "san_{0}_invalid_crc_count.label {0} Invalid CRC Count",
             hname
-        );
-        println!("san_{0}_invalid_crc_count.draw LINE", hname);
-        println!("san_{0}_invalid_crc_count.type COUNTER", hname);
-        println!("san_{0}_invalid_crc_count.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "san_{0}_invalid_crc_count.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_invalid_crc_count.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_invalid_crc_count.min 0", hname)?;
+        writeln!(
+            handle,
             "san_{0}_invalid_tx_word_count.label {0} Invalid TX Word Count",
             hname
-        );
-        println!("san_{0}_invalid_tx_word_count.draw LINE", hname);
-        println!("san_{0}_invalid_tx_word_count.type COUNTER", hname);
-        println!("san_{0}_invalid_tx_word_count.min 0", hname);
-        println!(
+        )?;
+        writeln!(handle, "san_{0}_invalid_tx_word_count.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_invalid_tx_word_count.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_invalid_tx_word_count.min 0", hname)?;
+        writeln!(
+            handle,
             "san_{0}_link_failure_count.label {0} Link Failure Count",
             hname
-        );
-        println!("san_{0}_link_failure_count.draw LINE", hname);
-        println!("san_{0}_link_failure_count.type COUNTER", hname);
-        println!("san_{0}_link_failure_count.min 0", hname);
+        )?;
+        writeln!(handle, "san_{0}_link_failure_count.draw LINE", hname)?;
+        writeln!(handle, "san_{0}_link_failure_count.type COUNTER", hname)?;
+        writeln!(handle, "san_{0}_link_failure_count.min 0", hname)?;
     }
+    handle.flush()?;
 
     Ok(())
 }
 
 /// Parse a sysfs value from fc_host from hex to <<u128>>
 macro_rules! parsedp {
-    ($host:expr, $dp:expr) => {
+    ($host:ident, $dp:ident) => {
         parse::<u128>(
             std::fs::read_to_string(
                 Path::new("/sys/class/fc_host")
@@ -357,8 +403,9 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
 
     // We want to write possibly large amount to stdout, take and lock it
     let stdout = io::stdout();
-    let mut handle = stdout.lock();
-
+    // And if we put a bufwriter in between, things use way less syscalls, as otherwise
+    // writeln is triggering it every few bytes
+    let mut handle = BufWriter::with_capacity(32768, stdout.lock());
     for host in get_hosts()? {
         for fname in NAMES {
             let cf = Path::join(cache, format!("munin.fc_stats.value.{}{}", host, fname));
@@ -374,6 +421,7 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
             io::copy(&mut fetchfile, &mut handle)?;
         }
     }
+    handle.flush()?;
     Ok(())
 }
 
