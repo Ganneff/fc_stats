@@ -286,7 +286,7 @@ macro_rules! openfd {
 /// Write out 2 lines, one to each given (already open!) file
 macro_rules! wout {
     ($cfd:ident, $sfd:ident, $host:ident, $dp:ident, $epoch:ident, $data:ident) => {
-        writeln!($cfd, "san_{0}_{1}.value {2}:{3}", $host, $dp, $epoch, $data)?;
+        writeln!($cfd, "{0}_{1}.value {2}:{3}", $host, $dp, $epoch, $data)?;
         writeln!($sfd, "san_{0}_{1}.value {2}:{3}", $host, $dp, $epoch, $data)?;
     };
 }
