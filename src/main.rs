@@ -275,11 +275,13 @@ macro_rules! parsedp {
 /// Open a file for appending
 macro_rules! openfd {
     ($file:ident) => {
-        OpenOptions::new()
-            .create(true) // If not there, create
-            .write(true) // We want to write
-            .append(true) // We want to append
-            .open($file)?
+        BufWriter::new(
+            OpenOptions::new()
+                .create(true) // If not there, create
+                .write(true) // We want to write
+                .append(true) // We want to append
+                .open($file)?,
+        )
     };
 }
 
