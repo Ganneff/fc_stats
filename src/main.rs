@@ -415,6 +415,20 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
             rename(&cf, &fp)?;
             // Want to read the tempfile now
             let mut fetchfile = std::fs::File::open(&fp)?;
+
+            match fname {
+                ".mega" | ".requests" | ".other" => {
+                    writeln!(
+                        handle,
+                        "multigraph san_{0}.san_{0}_{1}",
+                        host,
+                        fname.replace(".", "")
+                    )?;
+                }
+                &_ => {
+                    writeln!(handle, "multigraph san_{0}", host)?;
+                }
+            }
             // And ask io::copy to just take it all and show it into stdout
             io::copy(&mut fetchfile, &mut handle)?;
         }
