@@ -274,19 +274,18 @@ macro_rules! parsedp {
 
 /// Open a file for appending
 macro_rules! openfd {
-    ($file:expr) => {
+    ($file:ident) => {
         OpenOptions::new()
             .create(true) // If not there, create
             .write(true) // We want to write
             .append(true) // We want to append
-            .open($file)
-            .expect("Couldn't open cachefile")
+            .open($file)?
     };
 }
 
 /// Write out 2 lines, one to each given (already open!) file
 macro_rules! wout {
-    ($cfd:expr, $sfd:expr, $host:expr, $dp:expr, $epoch:expr, $data:expr) => {
+    ($cfd:ident, $sfd:ident, $host:ident, $dp:ident, $epoch:ident, $data:ident) => {
         writeln!($cfd, "san_{0}_{1}.value {2}:{3}", $host, $dp, $epoch, $data)?;
         writeln!($sfd, "san_{0}_{1}.value {2}:{3}", $host, $dp, $epoch, $data)?;
     };
@@ -294,7 +293,7 @@ macro_rules! wout {
 
 /// Gather data from sysfs
 macro_rules! gather_data {
-    ($dp:expr, $cachepath:expr, $host:expr, $epoch:expr) => {
+    ($dp:ident, $cachepath:ident, $host:ident, $epoch:ident) => {
         let cachefile = Path::join($cachepath, format!("munin.fc_stats.value.{}", $host));
         let mut cachefd = openfd!(cachefile);
 
@@ -336,11 +335,8 @@ macro_rules! gather_data {
 fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
     trace!("Going to daemonize");
 
-    let daemonize = Daemonize::new()
-        .pid_file(pidfile)
-        .chown_pid_file(true)
-        .working_directory("/tmp");
-
+    // Those are never (outside recompile) going to change, so make it a const.
+    // We are intereted in those datapoints for the fc_stats
     #[allow(clippy::redundant_static_lifetimes)]
     const DATA: [&'static str; 8] = [
         "fcp_input_megabytes",
@@ -352,44 +348,45 @@ fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
         "invalid_tx_word_count",
         "link_failure_count",
     ];
-    match daemonize.start() {
-        Ok(_) => {
-            // The loop helper makes it easy to repeat a loop once a second
-            let mut loop_helper = LoopHelper::builder().build_with_target_rate(1); // Only once a second
 
-            // If we put this into the loop, we would be reacting to a
-            // changed host situation, like when someone is doing a
-            // manual forced reset of them. OTOH that would mean
-            // recalculating this once a second, and that is really
-            // not worth it, as such a manual reset happens something
-            // like once a year only. We require a restart then.
-            let hosts = get_hosts()?;
+    // We want to run as daemon, so prepare
+    let daemonize = Daemonize::new()
+        .pid_file(pidfile)
+        .chown_pid_file(true)
+        .working_directory("/tmp");
 
-            // We run forever
-            loop {
-                // Let loop helper prepare
-                loop_helper.loop_start();
+    // And off into the background we go
+    daemonize.start()?;
 
-                // We need the current epoch
-                let epoch = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time gone broken, what?")
-                    .as_secs(); // without the nanosecond part
+    // The loop helper makes it easy to repeat a loop once a second
+    let mut loop_helper = LoopHelper::builder().build_with_target_rate(1); // Only once a second
 
-                for host in &hosts {
-                    for dp in DATA {
-                        gather_data!(dp, cachepath, host, epoch);
-                    }
-                }
+    // If we put this into the loop, we would be reacting to a
+    // changed host situation, like when someone is doing a
+    // manual forced reset of them. OTOH that would mean
+    // recalculating this once a second, and that is really
+    // not worth it, as such a manual reset happens something
+    // like once a year only. We require a restart then.
+    let hosts = get_hosts()?;
 
-                // Sleep for the rest of the second
-                loop_helper.loop_sleep();
+    // We run forever
+    loop {
+        // Let loop helper prepare
+        loop_helper.loop_start();
+
+        // We need the current epoch
+        let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(); // without the nanosecond part
+
+        // Look at each detected fc host
+        for host in &hosts {
+            // And gather the data we are interested in
+            for dp in DATA {
+                gather_data!(dp, cachepath, host, epoch);
             }
         }
-        Err(e) => {
-            error!("Something gone wrong: {}", e);
-            Err(Box::new(e))
-        }
+
+        // Sleep for the rest of the second
+        loop_helper.loop_sleep();
     }
 }
 
@@ -398,6 +395,7 @@ fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
 /// Basically a "mv file tmpfile && cat tmpfile && rm tmpfile",
 /// as the file is already in proper format
 fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
+    // Hardcoded list of names
     #[allow(clippy::redundant_static_lifetimes)]
     const NAMES: [&'static str; 4] = ["", ".mega", ".requests", ".other"];
 
