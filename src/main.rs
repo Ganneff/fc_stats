@@ -339,7 +339,7 @@ macro_rules! gather_data {
 /// Gather the data from the system.
 ///
 /// Daemonize into background and then run a loop forever, that
-/// fetches data once a second and appends it to the given cachefile.
+/// fetches data once a second and appends it to files in the given cachepath.
 ///
 /// We read the values from the statistic files and parse them to a
 /// [u64], that ought to be big enough to not overflow.
