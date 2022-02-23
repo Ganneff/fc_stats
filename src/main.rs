@@ -269,7 +269,7 @@ fn config() -> Result<(), Box<dyn Error>> {
 /// Parse a sysfs value from fc_host from hex to <<u128>>
 macro_rules! parsedp {
     ($host:ident, $dp:ident) => {
-        parse::<u128>(
+        parse::<u64>(
             std::fs::read_to_string(
                 Path::new("/sys/class/fc_host")
                     .join($host)
@@ -313,7 +313,7 @@ macro_rules! gather_data {
                 let mbcachefile =
                     Path::join($cachepath, format!("munin.fc_stats.value.{}.mega", $host));
                 let mut mbcachefd = openfd!(mbcachefile);
-                let data: u128 = parsedp!($host, $dp);
+                let data: u64 = parsedp!($host, $dp);
                 wout!(cachefd, mbcachefd, $host, $dp, $epoch, data);
             }
             "fcp_input_requests" | "fcp_output_requests" => {
@@ -342,7 +342,7 @@ macro_rules! gather_data {
 /// fetches data once a second and appends it to the given cachefile.
 ///
 /// We read the values from the statistic files and parse them to a
-/// u128, that ought to be big enough to not overflow.
+/// [u64], that ought to be big enough to not overflow.
 fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
     trace!("Going to daemonize");
 
