@@ -23,7 +23,12 @@ use std::{
 use tempfile::NamedTempFile;
 
 /// Return list of fibrechannel hosts or error out
+///
+/// Simply a list of entries in the sysfs tree. Entries there usually
+/// named host? with ? == one digit, though I have not seen a
+/// particular scheme of when its 0, 1, 2 or 3.
 fn get_hosts() -> Result<Vec<String>, Box<dyn Error>> {
+    // A list of "hosts" AKA entries in the sysfs tree
     Ok(read_dir("/sys/class/fc_host/")?
         .into_iter()
         .map(|name| {
@@ -34,6 +39,9 @@ fn get_hosts() -> Result<Vec<String>, Box<dyn Error>> {
 }
 
 /// Print out munin config data
+///
+/// Will print out config data per host as listed from [get_hosts],
+/// preparing for multiple graphs, one summary and 3 detail ones.
 fn config() -> Result<(), Box<dyn Error>> {
     // We want to write a large amount to stdout, take and lock it
     let stdout = io::stdout();
@@ -252,6 +260,7 @@ fn config() -> Result<(), Box<dyn Error>> {
         writeln!(handle, "san_{0}_link_failure_count.type COUNTER", hname)?;
         writeln!(handle, "san_{0}_link_failure_count.min 0", hname)?;
     }
+    // And flush it, so it can also deal with possible errors
     handle.flush()?;
 
     Ok(())
@@ -293,7 +302,7 @@ macro_rules! wout {
     };
 }
 
-/// Gather data from sysfs
+/// Gather data from sysfs and store into cachefile
 macro_rules! gather_data {
     ($dp:ident, $cachepath:ident, $host:ident, $epoch:ident) => {
         let cachefile = Path::join($cachepath, format!("munin.fc_stats.value.{}", $host));
@@ -337,8 +346,11 @@ macro_rules! gather_data {
 fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
     trace!("Going to daemonize");
 
-    // Those are never (outside recompile) going to change, so make it a const.
-    // We are intereted in those datapoints for the fc_stats
+    // Those are never (outside recompile) going to change, so make it
+    // a const. We are intereted in those datapoints for the fc_stats.
+    // Entries here are filenames in
+    // /sys/class/fc_host/HOST/statistics and are expected to show hex
+    // numbers.
     #[allow(clippy::redundant_static_lifetimes)]
     const DATA: [&'static str; 8] = [
         "fcp_input_megabytes",
@@ -394,8 +406,9 @@ fn acquire(cachepath: &Path, pidfile: &Path) -> Result<(), Box<dyn Error>> {
 
 /// Hand out the collected interface data
 ///
-/// Basically a "mv file tmpfile && cat tmpfile && rm tmpfile",
-/// as the file is already in proper format
+/// Basically a "mv file tmpfile && cat tmpfile && rm tmpfile", as the
+/// file is already in proper format. Adds a "header" per file needed
+/// for the multigraph setup.
 fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
     // Hardcoded list of names
     #[allow(clippy::redundant_static_lifetimes)]
@@ -418,6 +431,8 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
             // Want to read the tempfile now
             let mut fetchfile = std::fs::File::open(&fp)?;
 
+            // Write header depending on the filename, to match what
+            // config() has given munin
             match fname {
                 ".mega" | ".requests" | ".other" => {
                     writeln!(
@@ -431,10 +446,11 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
                     writeln!(handle, "multigraph san_{0}", host)?;
                 }
             }
-            // And ask io::copy to just take it all and show it into stdout
+            // And ask io::copy to just take it all and shove it into stdout
             io::copy(&mut fetchfile, &mut handle)?;
         }
     }
+    // Ensure the bufWriter is flushed, allows it to deal with possiblke errors.
     handle.flush()?;
     Ok(())
 }
@@ -459,6 +475,9 @@ fn main() {
     // Put our cache file there
     let cache = Path::new(&plugstate);
     debug!("Cache: {:?}", cache);
+    // Our pid is stored here - we also use it to detect if the daemon
+    // part is running, and if not, to start it when called to fetch
+    // data.
     let pidfile = Path::new(&plugstate).join("munin.fc_stats.pid");
     debug!("PIDfile: {:?}", pidfile);
 
@@ -482,6 +501,7 @@ fn main() {
                 lockedfile.try_lock_exclusive().is_ok()
             };
 
+            // If we could lock, it appears that acquire isn't running. Start it.
             if lockfile {
                 debug!("Could lock the pidfile, will spawn acquire now");
                 Command::new(&args[0])
@@ -498,6 +518,7 @@ fn main() {
                 thread::sleep(Duration::from_secs(1));
                 // }
             }
+            // And now we can hand out the cached data
             if let Err(e) = fetch(cache) {
                 error!("Could not fetch data: {}", e);
                 std::process::exit(6);
