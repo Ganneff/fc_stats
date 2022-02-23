@@ -421,15 +421,17 @@ fn fetch(cache: &Path) -> Result<(), Box<dyn Error>> {
     let mut handle = BufWriter::with_capacity(32768, stdout.lock());
     for host in get_hosts()? {
         for fname in NAMES {
-            let cf = Path::join(cache, format!("munin.fc_stats.value.{}{}", host, fname));
-            trace!("CF: {:?}", cf);
-            let fp = NamedTempFile::new_in(cache)?;
-            trace!("FP Temp: {:?}", fp);
+            // Construct the filename
+            let valfile = Path::join(cache, format!("munin.fc_stats.value.{}{}", host, fname));
+            trace!("Value file: {:?}", valfile);
+            // And we need a tempfile, so we can mv the actual file over
+            let tempfile = NamedTempFile::new_in(cache)?;
+            trace!("Temp file: {:?}", tempfile);
             // Rename the cache file, to ensure that acquire doesn't add data
             // between us outputting data and deleting the file
-            rename(&cf, &fp)?;
+            rename(&valfile, &tempfile)?;
             // Want to read the tempfile now
-            let mut fetchfile = std::fs::File::open(&fp)?;
+            let mut fetchfile = std::fs::File::open(&tempfile)?;
 
             // Write header depending on the filename, to match what
             // config() has given munin
