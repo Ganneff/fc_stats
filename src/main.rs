@@ -269,7 +269,7 @@ fn config() -> Result<(), Box<dyn Error>> {
 /// Parse a sysfs value from fc_host from hex to <<u128>>
 macro_rules! parsedp {
     ($host:ident, $dp:ident) => {
-        parse::<u64>(
+        parse::<u128>(
             std::fs::read_to_string(
                 Path::new("/sys/class/fc_host")
                     .join($host)
@@ -313,7 +313,7 @@ macro_rules! gather_data {
                 let mbcachefile =
                     Path::join($cachepath, format!("munin.fc_stats.value.{}.mega", $host));
                 let mut mbcachefd = openfd!(mbcachefile);
-                let data: u64 = parsedp!($host, $dp);
+                let data: u128 = parsedp!($host, $dp);
                 wout!(cachefd, mbcachefd, $host, $dp, $epoch, data);
             }
             "fcp_input_requests" | "fcp_output_requests" => {
