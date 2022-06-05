@@ -428,13 +428,11 @@ fn main() -> Result<()> {
     info!("fc_stats started");
 
     // Set out config
-    let mut config = Config::new(String::from("fc_stats"));
-    // Yes, we want to run as a daemon, gathering data once a second
-    config.daemonize = true;
+    let mut config = Config::new_daemon(String::from("fc_stats"));
     // Fetchsize 64k is arbitary, but better than default 8k.
-    config.fetchsize = 65535;
+    config.fetch_size = 65535;
     // Config is big
-    config.cfgsize = 16384;
+    config.config_size = 16384;
 
     let mut fcstats = FcPlugin {
         ..Default::default()
